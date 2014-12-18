@@ -25,8 +25,8 @@ import java.util.*;
 %Jnoconstruct
 
 %token VOID   BOOL  INT   STRING  CLASS 
-%token NULL   EXTENDS     THIS     WHILE   FOR   
-%token IF     ELSE        RETURN   BREAK   NEW
+%token NULL   EXTENDS     THIS     WHILE   FOR   REPEAT UNTIL
+%token IF     ELSE     SWITCH    CASE   DEFAULT   RETURN   BREAK   NEW
 %token PRINT  READ_INTEGER         READ_LINE
 %token LITERAL
 %token IDENTIFIER	  AND    OR    STATIC  INSTANCEOF
@@ -34,12 +34,14 @@ import java.util.*;
 %token '+'  '-'  '*'  '/'  '%'  '='  '>'  '<'  '.'
 %token ','  ';'  '!'  '('  ')'  '['  ']'  '{'  '}'
 
+%nonassoc '?' ':'
 %left OR
 %left AND 
 %nonassoc EQUAL NOT_EQUAL
 %nonassoc LESS_EQUAL GREATER_EQUAL '<' '>'
 %left  '+' '-'
-%left  '*' '/' '%'  
+%left  '*' '/' '%' 
+%nonassoc ADDONE SUBONE 
 %nonassoc UMINUS '!' 
 %nonassoc '[' '.' 
 %nonassoc ')' EMPTY
@@ -189,12 +191,30 @@ Stmt		    :	VariableDef
                 		}
                 	}
                 |	IfStmt
+                |	SwitchStmt
+                |	RepeatUntil
                 |	WhileStmt
                 |	ForStmt
                 |	ReturnStmt ';'
                 |	PrintStmt ';'
                 |	BreakStmt ';'
                 |	StmtBlock
+                |   ADDONE Expr ';'
+                	{
+                		$$.stmt = new Tree.Unary(Tree.PREINC, $2.expr, $1.loc);
+                	}
+                |   Expr ADDONE ';'
+                	{
+                		$$.stmt = new Tree.Unary(Tree.POSTINC, $1.expr, $1.loc);
+                	}
+                |   SUBONE Expr ';'
+                	{
+                		$$.stmt = new Tree.Unary(Tree.PREDEC, $2.expr, $1.loc);
+                	}
+                |   Expr SUBONE ';'
+                	{
+                		$$.stmt = new Tree.Unary(Tree.POSTDEC, $1.expr, $1.loc);
+                	}
                 ;
 
 SimpleStmt      :	LValue '=' Expr
@@ -208,6 +228,22 @@ SimpleStmt      :	LValue '=' Expr
                 |	/* empty */
                 	{
                 		$$ = new SemValue();
+                	}
+                |   ADDONE Expr
+                	{
+                		$$.stmt = new Tree.Unary(Tree.PREINC, $2.expr, $1.loc);
+                	}
+                |   Expr ADDONE
+                	{
+                		$$.stmt = new Tree.Unary(Tree.POSTINC, $1.expr, $1.loc);
+                	}
+                |   SUBONE Expr
+                	{
+                		$$.stmt = new Tree.Unary(Tree.PREDEC, $2.expr, $1.loc);
+                	}
+                |   Expr SUBONE
+                	{
+                		$$.stmt = new Tree.Unary(Tree.POSTDEC, $1.expr, $1.loc);
                 	}
                 ;
 
@@ -306,10 +342,30 @@ Expr            :	LValue
                 	{
                 		$$.expr = new Tree.Unary(Tree.NEG, $2.expr, $1.loc);
                 	}
+                |   ADDONE Expr
+                	{
+                		$$.expr = new Tree.Unary(Tree.PREINC, $2.expr, $1.loc);
+                	}
+                |   Expr ADDONE
+                	{
+                		$$.expr = new Tree.Unary(Tree.POSTINC, $1.expr, $1.loc);
+                	}
+                |   SUBONE Expr
+                	{
+                		$$.expr = new Tree.Unary(Tree.PREDEC, $2.expr, $1.loc);
+                	}
+                |   Expr SUBONE
+                	{
+                		$$.expr = new Tree.Unary(Tree.POSTDEC, $1.expr, $1.loc);
+                	}
                 |	'!' Expr
                 	{
                 		$$.expr = new Tree.Unary(Tree.NOT, $2.expr, $1.loc);
                 	}
+                |   Expr '?' Expr ':' Expr
+                	{
+                		$$.expr = new Tree.Trinary(Tree.TRIOP, $1.expr, $3.expr, $5.expr, $1.loc);
+                	} 
                 |	READ_INTEGER '(' ')'
                 	{
                 		$$.expr = new Tree.ReadIntExpr($1.loc);
@@ -339,7 +395,7 @@ Expr            :	LValue
                 		$$.expr = new Tree.TypeCast($3.ident, $5.expr, $5.loc);
                 	} 
                 ;
-	
+
 Constant        :	LITERAL
 					{
 						$$.expr = new Tree.Literal($1.typeTag, $1.literal, $1.loc);
@@ -380,6 +436,10 @@ ForStmt         :	FOR '(' SimpleStmt ';' Expr ';'	SimpleStmt ')' Stmt
 						$$.stmt = new Tree.ForLoop($3.stmt, $5.expr, $7.stmt, $9.stmt, $1.loc);
 					}
                 ;
+RepeatUntil		: 	REPEAT Stmt UNTIL Expr
+					{
+						$$.stmt = new RepeatUntil($2.stmt, $4.expr, $1.loc);
+					}
 
 BreakStmt       :	BREAK
 					{
@@ -392,7 +452,36 @@ IfStmt          :	IF '(' Expr ')' Stmt ElseClause
 						$$.stmt = new Tree.If($3.expr, $5.stmt, $6.stmt, $1.loc);
 					}
                 ;
+CaseStmt		: 	CASE Constant ':' StmtList
+					{
+						$$.stmt = new Tree.Case($2.expr, $4.slist, $2.loc);
+					}
+				;
+				
+DefaultStmt     :   DEFAULT ':' StmtList
+					{
+						$$.stmt = new Tree.Default($3.slist, $1.loc);
+					}
+				;
+SwitchStmt      :	SWITCH '(' Expr ')' '{' SwitchBlock '}'
+					{
+						$$.stmt = new Tree.Switch($3.expr, $6.stmt, $3.loc);
+					}
+				;
 
+SwitchBlock		:	SwitchBlock CaseStmt
+					{
+						$$.stmt = new Tree.SwitchBlock(Tree.CASESTMT, $1.stmt, $2.stmt, $1.loc);
+					}
+				|	SwitchBlock DefaultStmt
+					{
+						$$.stmt = new Tree.SwitchBlock(Tree.DEFAULTSTMT, $1.stmt, $2.stmt, $1.loc);
+					}
+				|	/* empty */
+					{
+						$$ = new SemValue();
+					}
+				;
 ElseClause      :	ELSE Stmt
 					{
 						$$.stmt = $2.stmt;
