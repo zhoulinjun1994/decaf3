@@ -208,43 +208,6 @@ public class BuildSym extends Tree.Visitor {
 		}
 		table.close();
 	}
-	
-	@Override
-	public void visitSwitch(Tree.Switch sw) {
-		if (sw.stmt != null) {
-			sw.stmt.accept(this);
-		}
-	}
-	
-	@Override
-	public void visitSwitchBlock(Tree.SwitchBlock sb) {
-		if (sb.left != null) {
-			sb.left.accept(this);
-		}
-		if (sb.right != null) {
-			sb.right.accept(this);
-		}
-	}
-	
-	@Override
-	public void visitCase(Tree.Case c) {
-		for(Tree st : c.stmt)
-		{
-			if (st != null) {
-				st.accept(this);
-			}
-		}
-	}
-	
-	@Override
-	public void visitDefault(Tree.Default de) {
-		for(Tree st : de.stmt)
-		{
-			if (st != null) {
-				st.accept(this);
-			}
-		}
-	}
 
 	@Override
 	public void visitForLoop(Tree.ForLoop forLoop) {
@@ -267,13 +230,6 @@ public class BuildSym extends Tree.Visitor {
 	public void visitWhileLoop(Tree.WhileLoop whileLoop) {
 		if (whileLoop.loopBody != null) {
 			whileLoop.loopBody.accept(this);
-		}
-	}
-	
-	@Override
-	public void visitRepeatUntil(Tree.RepeatUntil repeatuntil) {
-		if (repeatuntil.left != null) {
-			repeatuntil.left.accept(this);
 		}
 	}
 

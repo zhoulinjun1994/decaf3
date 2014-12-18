@@ -7,7 +7,6 @@ import java.util.Stack;
 import decaf.Driver;
 import decaf.Location;
 import decaf.tree.Tree;
-import decaf.tree.Tree.Expr;
 import decaf.error.BadArgCountError;
 import decaf.error.BadArgTypeError;
 import decaf.error.BadArrElementError;
@@ -23,12 +22,6 @@ import decaf.error.DecafError;
 import decaf.error.FieldNotAccessError;
 import decaf.error.FieldNotFoundError;
 import decaf.error.IncompatBinOpError;
-import decaf.error.IncompatCaseError;
-import decaf.error.IncompatLvalueError;
-import decaf.error.IncompatRepeatUntilError;
-import decaf.error.IncompatSwitchError;
-import decaf.error.IncompatTriOpError;
-import decaf.error.IncompatTriOpJudgeError;
 import decaf.error.IncompatUnOpError;
 import decaf.error.NotArrayError;
 import decaf.error.NotClassError;
@@ -85,7 +78,7 @@ public class TypeCheck extends Tree.Visitor {
 				expr.type = BaseType.ERROR;
 			}
 		}
-		else if(expr.tag == Tree.NOT){
+		else{
 			if (!(expr.expr.type.equal(BaseType.BOOL) || expr.expr.type
 					.equal(BaseType.ERROR))) {
 				issueError(new IncompatUnOpError(expr.getLocation(), "!",
@@ -93,30 +86,6 @@ public class TypeCheck extends Tree.Visitor {
 			}
 			expr.type = BaseType.BOOL;
 		}
-		else if(expr.tag == Tree.POSTINC || expr.tag == Tree.PREINC){
-			if (!(expr.expr.type.equal(BaseType.INT) || expr.expr.type
-					.equal(BaseType.ERROR))) {
-				issueError(new IncompatUnOpError(expr.getLocation(), "++",
-						expr.expr.type.toString()));
-			}
-			else if(!(expr.expr instanceof Tree.LValue))
-				issueError(new IncompatLvalueError(expr.getLocation(), "++"));
-			expr.type = BaseType.INT;
-		}
-		else if(expr.tag == Tree.POSTDEC || expr.tag == Tree.PREDEC){
-			if (!(expr.expr.type.equal(BaseType.INT) || expr.expr.type
-					.equal(BaseType.ERROR))) {
-				issueError(new IncompatUnOpError(expr.getLocation(), "--",
-						expr.expr.type.toString()));
-			}
-			else if(!(expr.expr instanceof Tree.LValue))
-				issueError(new IncompatLvalueError(expr.getLocation(), "--"));
-			expr.type = BaseType.INT;
-		}
-	}
-	@Override
-	public void visitTrinary(Tree.Trinary expr) {
-		expr.type = checkTrinaryOp(expr.left, expr.middle, expr.right, expr.tag, expr.loc);
 	}
 
 	@Override
@@ -163,43 +132,6 @@ public class TypeCheck extends Tree.Visitor {
 		indexed.index.accept(this);
 		if (!indexed.index.type.equal(BaseType.INT)) {
 			issueError(new SubNotIntError(indexed.getLocation()));
-		}
-	}
-	@Override
-	public void visitSwitch(Tree.Switch stmt) {
-		checkSwitch(stmt.value, stmt.stmt, stmt.loc);
-	}
-	
-	@Override
-	public void visitSwitchBlock(Tree.SwitchBlock stmt) {
-		if(stmt.left != null)
-			stmt.left.accept(this);
-		if(stmt.right != null)
-			stmt.right.accept(this);
-	}
-	
-	@Override
-	public void visitRepeatUntil(Tree.RepeatUntil stmt) {
-		checkTestExpr(stmt.condition);
-		breaks.add(stmt);
-		if (stmt.left != null) {
-			stmt.left.accept(this);
-		}
-		breaks.pop();
-	}
-	
-	@Override
-	public void visitCase(Tree.Case stmt) {
-		checkCase(stmt.value, stmt.stmt, stmt.loc);
-	}
-	
-	@Override
-	public void visitDefault(Tree.Default stmt) {
-		for(Tree st : stmt.stmt)
-		{
-			if (st != null) {
-				st.accept(this);
-			}
 		}
 	}
 
@@ -643,69 +575,6 @@ public class TypeCheck extends Tree.Visitor {
 	private void issueError(DecafError error) {
 		Driver.getDriver().issueError(error);
 	}
-	
-	private void checkSwitch(Tree.Expr value, Tree stmtblock, Location location)
-	{
-		if(value != null)
-			value.accept(this);
-		if(!value.type.equal(BaseType.ERROR))
-		{
-			boolean compatible = false;
-			compatible = value.type.equal(BaseType.INT);
-			if (!compatible) {
-				issueError(new IncompatSwitchError(value.type.toString(), location));
-			}
-		}
-		if (stmtblock != null) {
-			stmtblock.accept(this);
-		}
-	}
-	
-	private void checkCase(Tree.Expr value, List<Tree> stmtblock, Location location)
-	{
-		value.accept(this);
-		for(Tree t : stmtblock)
-		{
-			breaks.add(t);
-			t.accept(this);
-			breaks.pop();
-		}
-		if(!value.type.equal(BaseType.ERROR))
-		{
-			boolean compatible = false;
-			compatible = value.type.equal(BaseType.INT);
-			if (!compatible) {
-				issueError(new IncompatCaseError(value.type.toString(), location));
-			}
-		}
-	}
-
-	
-	private Type checkTrinaryOp(Tree.Expr left, Tree.Expr middle, Tree.Expr right, int op, Location location){
-		left.accept(this);
-		middle.accept(this);
-		right.accept(this);
-		if (left.type.equal(BaseType.ERROR) || middle.type.equal(BaseType.ERROR) || right.type.equal(BaseType.ERROR))
-		{
-			return left.type;
-		}
-		boolean compatible1 = false;
-		boolean compatible2 = false;
-		Type returnType = BaseType.ERROR;
-		compatible1 = left.type.equal(BaseType.BOOL);
-		compatible2 = middle.type.equal(right.type);
-		returnType = middle.type;
-		if (!compatible1) {
-			issueError(new IncompatTriOpJudgeError(location));
-		}
-		if (!compatible2) {
-			issueError(new IncompatTriOpError(location, middle.type.toString(), right.type.toString()));
-		}
-		if(compatible1 && compatible2)
-			return returnType;
-		else
-			return BaseType.ERROR;
-	}
 
 	private Type checkBinaryOp(Tree.Expr left, Tree.Expr right, int op, Location location) {
 		left.accept(this);
@@ -778,6 +647,5 @@ public class TypeCheck extends Tree.Visitor {
 			issueError(new BadTestExpr(expr.getLocation()));
 		}
 	}
-	
 
 }
