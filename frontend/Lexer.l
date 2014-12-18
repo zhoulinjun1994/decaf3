@@ -37,12 +37,12 @@ HEX_INTEGER			= (0[Xx]{HEX_DIGIT}+)
 DEC_INTEGER			= ({DIGIT}+)
 INTEGER				= ({HEX_INTEGER}|{DEC_INTEGER})
 IDENTIFIER			= ([A-Za-z][_0-9A-Za-z]*)
-SIMPLE_OPERATOR		= ("+"|"-"|"*"|"/"|"%"|"="|"<"|">"|"."|","|";"|"!"|"("|")"|"["|"]"|"{"|"}")
+SIMPLE_OPERATOR		= ("+"|"-"|"*"|"/"|"%"|"="|"<"|">"|"."|","|";"|"!"|"("|")"|"["|"]"|"{"|"}"|"?"|":")
 S_COMMENT			= ("//"[^\r\n]*{NEWLINE})
 WHITESPACE			= ([ \t]+)
 
 	// 开始条件S表示字符串
-%x S
+%x S, T
 
 %%
 	// 识别注释和空白字符的规则
@@ -65,6 +65,11 @@ WHITESPACE			= ([ \t]+)
 "for"				{ return keyword(Parser.FOR);			}
 "if"				{ return keyword(Parser.IF);			}
 "else"				{ return keyword(Parser.ELSE);			}
+"switch"			{ return keyword(Parser.SWITCH);		}
+"case" 				{ return keyword(Parser.CASE);			}
+"default"			{ return keyword(Parser.DEFAULT);		}
+"repeat"			{ return keyword(Parser.REPEAT);		}
+"until"				{ return keyword(Parser.UNTIL);			}
 "return"			{ return keyword(Parser.RETURN);		}
 "break"				{ return keyword(Parser.BREAK);			}
 "Print"				{ return keyword(Parser.PRINT);			}
@@ -80,6 +85,8 @@ WHITESPACE			= ([ \t]+)
 "!="				{ return operator(Parser.NOT_EQUAL);	}
 "&&"				{ return operator(Parser.AND);			}
 "||"				{ return operator(Parser.OR);			}
+"++"                { return operator(Parser.ADDONE);       }
+"--"                { return operator(Parser.SUBONE);       }
 {SIMPLE_OPERATOR}	{ return operator((int)yycharat(0));	}
 
 	// 识别常数的规则
@@ -99,6 +106,13 @@ WHITESPACE			= ([ \t]+)
 <S>"\\\""			{ buffer.append('"');											}
 <S>"\\\\"			{ buffer.append('\\'); 											}
 <S>.				{ buffer.append(yytext()); 										}
+<YYINITIAL>"/*"		{ sloc = getLocation();		  
+					  yybegin(T);													}
+<T>.				{																}
+<T>"*/"             { yybegin(YYINITIAL);											}
+<T>{NEWLINE}		{																}
+<T><<EOF>>			{ issueError(new UnterminatedMultiCommentError(sloc)); 
+				  	  yybegin(YYINITIAL);										    }
 
 	// 识别标识符的规则
 {IDENTIFIER}		{ return identifier(yytext());			}
